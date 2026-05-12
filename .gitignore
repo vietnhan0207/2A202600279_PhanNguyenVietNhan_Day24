@@ -1,0 +1,14 @@
+# Secrets
+.vault_key
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+
+# IDEs
+.vscode/
+.idea/
+
+# Environment
+.env

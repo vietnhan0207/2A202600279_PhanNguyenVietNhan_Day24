@@ -24,9 +24,46 @@
 |-----------------|-------------------|--------|-------|
 | Data minimization | PII anonymization pipeline (Presidio) | ✅ Done | AI Team |
 | Access control | RBAC (Casbin) + ABAC (OPA) | ✅ Done | Platform Team |
-| Encryption | AES-256 at rest, TLS 1.3 in transit | 🚧 In Progress | Infra Team |
+| Encryption | AES-256 at rest, TLS 1.3 in transit | ✅ Done | Infra Team |
 | Audit logging | CloudTrail + API access logs | ⬜ Todo | Platform Team |
 | Breach detection | Anomaly monitoring (Prometheus) | ⬜ Todo | Security Team |
 
-## F. TODO: Điền vào phần còn thiếu
-Với mỗi row còn "⬜ Todo", mô tả technical solution cụ thể bạn sẽ implement.
+## F. Technical Solutions cho các items còn Todo
+
+### Audit Logging
+**Solution:** Implement structured audit log middleware trong FastAPI:
+- Mỗi API request ghi log: `{timestamp, user, role, resource, action, result, ip}`
+- Lưu vào file log rotated hàng ngày + ship lên centralized log (ELK/Loki)
+- Retention: 90 ngày theo NĐ13
+- Implementation: FastAPI middleware + Python `logging` + `python-json-logger`
+
+```python
+@app.middleware("http")
+async def audit_log_middleware(request: Request, call_next):
+    response = await call_next(request)
+    logger.info({
+        "timestamp": datetime.utcnow().isoformat(),
+        "path": request.url.path,
+        "method": request.method,
+        "status": response.status_code,
+        "user": request.headers.get("Authorization", "anonymous"),
+    })
+    return response
+```
+
+### Breach Detection
+**Solution:** Prometheus + Grafana + AlertManager:
+- Metric: `api_unauthorized_requests_total` — đếm số 401/403 responses
+- Alert rule: nếu >50 lần 403 trong 5 phút → trigger PagerDuty/email
+- Metric: `api_data_export_bytes_total` — phát hiện data exfiltration
+- Anomaly detection: Grafana Loki + LogQL để phát hiện pattern bất thường
+- SIEM integration: ship logs vào Wazuh (open-source SIEM)
+
+```yaml
+# prometheus alert rule
+- alert: HighUnauthorizedRate
+  expr: rate(api_unauthorized_requests_total[5m]) > 10
+  for: 2m
+  annotations:
+    summary: "Possible breach attempt detected"
+```
